@@ -22,15 +22,17 @@ export class NavBar {
           <img src="/sprites/nav-bar-left-icon.png" alt="Back" />
         </button>
         <span class="nav-bar-title">Go2</span>
+      </div>
+      <div class="nav-bar-right">
+        <span class="motor-temp-label"></span>
+        <div class="nav-divider"></div>
         <div class="battery-icon">
           <div class="battery-fill-box">
             <div class="battery-fill"></div>
             <span class="battery-text">--%</span>
           </div>
         </div>
-        <span class="motor-temp-label"></span>
-      </div>
-      <div class="nav-bar-right">
+        <div class="nav-divider"></div>
         <span class="net-type-label"></span>
         <img class="wifi-icon" src="/sprites/icon_wifi.png" alt="WiFi" />
       </div>

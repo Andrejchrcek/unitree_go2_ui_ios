@@ -301,6 +301,12 @@ body {
   color: #aaa;
 }
 
+.nav-divider {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
 .net-type-label {
   font-size: 12px;
   font-weight: 600;
