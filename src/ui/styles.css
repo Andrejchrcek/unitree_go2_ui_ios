@@ -405,7 +405,7 @@ body {
   right: 0;
   display: flex;
   align-items: flex-end;
-  padding: 0 15px 15px 32px;
+  padding: 0 24px 15px 24px;
   z-index: 15;
   pointer-events: none;
 }
@@ -430,12 +430,11 @@ body {
   align-items: flex-end;
 }
 
-/* Wrapper 3: Right side (photo bar + right joystick) */
+/* Wrapper 3: Right side (right joystick) */
 .wrapper-3 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  margin-bottom: -10px;
   position: relative;
 }
 
