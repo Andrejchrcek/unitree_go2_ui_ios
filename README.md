@@ -1,4 +1,4 @@
-# Unitree Go2 WebRTC UI
+# Unitree Go2 WebRTC UI — iOS Edition
 
 A mobile-first control interface for the Unitree Go2 robot dog, communicating over WebRTC. Built with TypeScript, Three.js, Vite and Capacitor (iOS app).
 
@@ -6,6 +6,26 @@ A mobile-first control interface for the Unitree Go2 robot dog, communicating ov
 ![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Browser-blue)
 
 ![Control View](images/control-view.png)
+
+## Credits & Attribution
+
+This project is based on the excellent work of **[legion1581](https://github.com/legion1581)**.
+
+The original project — **[unitree_go2_ui](https://github.com/legion1581/unitree_go2_ui)** — provided the entire WebRTC communication layer, 3D visualization, robot protocol implementation, connection modes, and the browser-based control UI. Without his work this project would not exist.
+
+**What was added in this fork:**
+- Capacitor iOS app wrapper (landscape-only, native build)
+- Floating draggable panels — action bar, MP3 player, PIP — with saved positions
+- Full settings panel (icon size, labels, shortcuts manager, layout reset)
+- Audio page + `robot/audio_server.py` for MP3 upload and playback on the robot speaker
+- Action bar improvements: drag-to-reorder, add/remove shortcuts, grows freely with content
+- PIP remembers hidden state and active view (camera vs. 3D) across sessions
+- Joystick and PIP toggles with persisted state
+- Last-used IP saved automatically
+- 5-minute background disconnect grace period (survives phone calls)
+
+**A big thank you to legion1581 for sharing his work openly. Please check out and star his original repository!**
+👉 https://github.com/legion1581/unitree_go2_ui
 
 ## Features
 
