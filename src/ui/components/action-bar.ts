@@ -1,4 +1,5 @@
 import { SPORT_CMD } from '../../protocol/topics';
+import { getIconSize, getShowLabels, type IconSize } from '../components/settings-panel';
 
 export interface RobotAction {
   apiId: number;
@@ -63,6 +64,9 @@ const DEFAULT_SHORTCUTS: ShortcutRef[] = [
   { type: 'action', index: 4 },
 ];
 
+const SHORTCUTS_KEY = 'go2_shortcuts';
+const POS_KEY = 'go2_actionbar_pos';
+
 export class ActionBar {
   private container: HTMLElement;
   private island: HTMLElement;
@@ -79,9 +83,24 @@ export class ActionBar {
   private isDragging = false;
   private hasDragged = false;
 
+  // Drag state for moving the bar
+  private barDragging = false;
+  private barDragStartX = 0;
+  private barDragStartY = 0;
+  private barOffsetX = 0;
+  private barOffsetY = 0;
+  private barHasMoved = false;
+
   constructor(parent: HTMLElement, onAction: ActionCallback) {
     this.onAction = onAction;
-    this.shortcuts = [...DEFAULT_SHORTCUTS];
+
+    // Load saved shortcuts
+    try {
+      const saved = localStorage.getItem(SHORTCUTS_KEY);
+      this.shortcuts = saved ? (JSON.parse(saved) as ShortcutRef[]) : [...DEFAULT_SHORTCUTS];
+    } catch {
+      this.shortcuts = [...DEFAULT_SHORTCUTS];
+    }
 
     this.container = document.createElement('div');
     this.container.className = 'action-bar-container';
@@ -89,6 +108,24 @@ export class ActionBar {
     // Oval transparent island
     this.island = document.createElement('div');
     this.island.className = 'action-island';
+
+    // Drag grip handle — the only draggable area
+    const gripHandle = document.createElement('div');
+    gripHandle.className = 'action-bar-grip';
+    gripHandle.innerHTML = `<svg width="10" height="16" viewBox="0 0 10 16" fill="none">
+      <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.4)"/>
+      <circle cx="7" cy="3" r="1.5" fill="rgba(255,255,255,0.4)"/>
+      <circle cx="3" cy="8" r="1.5" fill="rgba(255,255,255,0.4)"/>
+      <circle cx="7" cy="8" r="1.5" fill="rgba(255,255,255,0.4)"/>
+      <circle cx="3" cy="13" r="1.5" fill="rgba(255,255,255,0.4)"/>
+      <circle cx="7" cy="13" r="1.5" fill="rgba(255,255,255,0.4)"/>
+    </svg>`;
+    this.island.appendChild(gripHandle);
+
+    // Small divider after grip
+    const gripDiv = document.createElement('div');
+    gripDiv.className = 'action-island-divider';
+    this.island.appendChild(gripDiv);
 
     // Grid icon button (4-square) on the left
     const gridBtn = document.createElement('button');
@@ -101,7 +138,7 @@ export class ActionBar {
     </svg>`;
     gridBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.togglePopup();
+      if (!this.barHasMoved) this.togglePopup();
     });
     this.island.appendChild(gridBtn);
 
@@ -116,11 +153,102 @@ export class ActionBar {
     scrollArea.id = 'action-island-scroll';
     this.island.appendChild(scrollArea);
 
+    // Apply icon size + labels from saved settings
+    this.island.dataset['iconSize'] = getIconSize();
+    this.island.dataset['labels'] = String(getShowLabels());
+
     this.container.appendChild(this.island);
     this.buildShortcutItems();
     this.setupScrollHandlers();
+    this.setupBarDrag();
     parent.appendChild(this.container);
+
+    // Restore saved position, or default to bottom-center
+    try {
+      const saved = localStorage.getItem(POS_KEY);
+      if (saved) {
+        const { x, y } = JSON.parse(saved) as { x: number; y: number };
+        this.barOffsetX = x;
+        this.barOffsetY = y;
+        this.container.style.transform = `translate(${x}px, ${y}px)`;
+      } else {
+        // Use window dimensions — works even if layout isn't fully flushed yet
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const rect = this.container.getBoundingClientRect();
+          const w = rect.width  || 300;
+          const h = rect.height || 60;
+          this.barOffsetX = Math.max(0, (window.innerWidth  - w) / 2);
+          this.barOffsetY = Math.max(0, window.innerHeight - h - 90);
+          this.container.style.transform = `translate(${this.barOffsetX}px, ${this.barOffsetY}px)`;
+        }));
+      }
+    } catch { /* ignore */ }
   }
+
+  /** Live-update icon size (S/M/L) */
+  setIconSize(size: IconSize): void {
+    this.island.dataset['iconSize'] = size;
+  }
+
+  /** Show or hide text labels under icons */
+  setShowLabels(show: boolean): void {
+    this.island.dataset['labels'] = String(show);
+  }
+
+  /** Reload shortcuts from localStorage (called after external edit) */
+  refreshShortcuts(): void {
+    try {
+      const saved = localStorage.getItem(SHORTCUTS_KEY);
+      this.shortcuts = saved ? (JSON.parse(saved) as ShortcutRef[]) : [...DEFAULT_SHORTCUTS];
+    } catch {
+      this.shortcuts = [...DEFAULT_SHORTCUTS];
+    }
+    this.buildShortcutItems();
+  }
+
+  // ── Bar drag ────────────────────────────────────────────────────────────
+
+  private setupBarDrag(): void {
+    const grip = this.island.querySelector('.action-bar-grip') as HTMLElement;
+    if (!grip) return;
+
+    grip.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.barDragging = true;
+      this.barHasMoved = false;
+      this.barDragStartX = e.clientX - this.barOffsetX;
+      this.barDragStartY = e.clientY - this.barOffsetY;
+      grip.setPointerCapture(e.pointerId);
+      this.container.style.transition = 'none';
+    });
+
+    grip.addEventListener('pointermove', (e) => {
+      if (!this.barDragging) return;
+      const dx = e.clientX - this.barDragStartX;
+      const dy = e.clientY - this.barDragStartY;
+      if (Math.abs(dx - this.barOffsetX) > 3 || Math.abs(dy - this.barOffsetY) > 3) {
+        this.barHasMoved = true;
+        this.closePopup();
+      }
+      this.barOffsetX = dx;
+      this.barOffsetY = dy;
+      this.container.style.transform = `translate(${dx}px, ${dy}px)`;
+    });
+
+    grip.addEventListener('pointerup', () => {
+      if (!this.barDragging) return;
+      this.barDragging = false;
+      this.container.style.transition = '';
+      if (this.barHasMoved) {
+        try {
+          localStorage.setItem(POS_KEY, JSON.stringify({ x: this.barOffsetX, y: this.barOffsetY }));
+        } catch { /* ignore */ }
+      }
+      setTimeout(() => { this.barHasMoved = false; }, 0);
+    });
+  }
+
+  // ── Shortcut bar ─────────────────────────────────────────────────────────
 
   private buildShortcutItems(): void {
     const scrollArea = this.island.querySelector('#action-island-scroll')!;
@@ -147,7 +275,7 @@ export class ActionBar {
       scrollArea.appendChild(btn);
     }
 
-    // "+" add button at the end of carousel (opens popup in edit mode)
+    // "+" add button at end
     const addBtn = document.createElement('button');
     addBtn.className = 'action-island-item action-add-btn';
     addBtn.innerHTML = `
@@ -166,6 +294,14 @@ export class ActionBar {
     });
     scrollArea.appendChild(addBtn);
   }
+
+  private saveShortcuts(): void {
+    try {
+      localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(this.shortcuts));
+    } catch { /* ignore */ }
+  }
+
+  // ── Scroll handlers ──────────────────────────────────────────────────────
 
   private setupScrollHandlers(): void {
     const scrollArea = this.island.querySelector('#action-island-scroll') as HTMLElement;
@@ -188,20 +324,17 @@ export class ActionBar {
 
     const endDrag = () => {
       this.isDragging = false;
-      const scrollArea = this.island.querySelector('#action-island-scroll') as HTMLElement;
-      if (scrollArea) scrollArea.style.cursor = '';
+      const sa = this.island.querySelector('#action-island-scroll') as HTMLElement;
+      if (sa) sa.style.cursor = '';
     };
     scrollArea.addEventListener('pointerup', endDrag);
     scrollArea.addEventListener('pointercancel', endDrag);
   }
 
-  // ── Popup (Action/Mode grid with Edit mode) ──
+  // ── Popup ────────────────────────────────────────────────────────────────
 
   private togglePopup(): void {
-    if (this.popup) {
-      this.closePopup();
-      return;
-    }
+    if (this.popup) { this.closePopup(); return; }
     this.openPopup();
   }
 
@@ -224,7 +357,6 @@ export class ActionBar {
     header.appendChild(editBtn);
     this.popup.appendChild(header);
 
-    // Action section
     const actionSection = document.createElement('div');
     actionSection.className = 'action-popup-section';
     actionSection.innerHTML = '<div class="action-popup-section-title">Action</div>';
@@ -234,7 +366,6 @@ export class ActionBar {
     actionSection.appendChild(actionGrid);
     this.popup.appendChild(actionSection);
 
-    // Mode section
     const modeSection = document.createElement('div');
     modeSection.className = 'action-popup-section';
     modeSection.innerHTML = '<div class="action-popup-section-title">Mode</div>';
@@ -276,11 +407,151 @@ export class ActionBar {
     ALL_ACTIONS.forEach((action, idx) => {
       actionGrid.appendChild(this.createPopupItem(action, idx, 'action'));
     });
-
     ALL_MODES.forEach((mode, idx) => {
       modeGrid.appendChild(this.createPopupItem(mode, idx, 'mode'));
     });
+
+    // In edit mode, show the reorder section at the top
+    if (this.editing) {
+      this.ensureReorderSection();
+    } else {
+      this.popup?.querySelector('.action-reorder-section')?.remove();
+    }
   }
+
+  // ── Reorder section ───────────────────────────────────────────────────────
+
+  private ensureReorderSection(): void {
+    if (!this.popup) return;
+    let section = this.popup.querySelector('.action-reorder-section') as HTMLElement | null;
+    if (!section) {
+      section = document.createElement('div');
+      section.className = 'action-reorder-section';
+      // Insert before first action-popup-section
+      const first = this.popup.querySelector('.action-popup-section');
+      if (first) this.popup.insertBefore(section, first);
+      else this.popup.appendChild(section);
+    }
+    this.buildReorderSection(section);
+  }
+
+  private buildReorderSection(section: HTMLElement): void {
+    section.innerHTML = `<div class="action-popup-section-title">Bar order — drag to reorder</div>`;
+
+    const list = document.createElement('div');
+    list.className = 'action-reorder-list';
+    section.appendChild(list);
+
+    for (let i = 0; i < this.shortcuts.length; i++) {
+      const ref = this.shortcuts[i];
+      const srcList = ref.type === 'action' ? ALL_ACTIONS : ALL_MODES;
+      const action = srcList[ref.index];
+      if (!action) continue;
+
+      const item = document.createElement('div');
+      item.className = 'action-reorder-item';
+      item.dataset['idx'] = String(i);
+      item.innerHTML = `
+        <span class="action-reorder-handle">≡</span>
+        <img src="${action.icon}" width="22" height="22" draggable="false"/>
+        <span class="action-reorder-name">${action.name}</span>
+        <button class="action-reorder-remove" title="Remove">×</button>
+      `;
+
+      // Remove button
+      item.querySelector('.action-reorder-remove')!.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.shortcuts.splice(i, 1);
+        this.saveShortcuts();
+        this.buildShortcutItems();
+        this.buildReorderSection(section);
+        this.rebuildPopupGrid();
+      });
+
+      // Drag to reorder
+      this.attachReorderDrag(item, list, section);
+      list.appendChild(item);
+    }
+  }
+
+  private attachReorderDrag(item: HTMLElement, list: HTMLElement, section: HTMLElement): void {
+    const handle = item.querySelector('.action-reorder-handle') as HTMLElement;
+    let dragging = false;
+    let startY = 0;
+    let currentIdx = 0;   // current position in shortcuts[] during drag
+
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      const dy = e.clientY - startY;
+
+      // Move item visually with transform — don't touch DOM structure
+      item.style.transform = `translateY(${dy}px)`;
+
+      // Check if we crossed the midpoint of a sibling → swap in shortcuts[]
+      const siblings = Array.from(
+        list.querySelectorAll('.action-reorder-item:not(.action-reorder-dragging)')
+      ) as HTMLElement[];
+
+      for (const sib of siblings) {
+        const sibIdx = parseInt(sib.dataset['idx'] ?? '-1', 10);
+        if (sibIdx < 0) continue;
+        const rect = sib.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+
+        if (sibIdx === currentIdx - 1 && e.clientY < mid) {
+          // Swap up
+          [this.shortcuts[currentIdx], this.shortcuts[sibIdx]] = [this.shortcuts[sibIdx], this.shortcuts[currentIdx]];
+          currentIdx = sibIdx;
+          startY = e.clientY;
+          item.style.transform = '';
+          this.buildReorderSection(section);
+          // Re-attach drag on the new item node (same data-idx)
+          const newItem = list.querySelector(`[data-idx="${currentIdx}"]`) as HTMLElement;
+          if (newItem) { newItem.classList.add('action-reorder-dragging'); }
+          return;
+        }
+        if (sibIdx === currentIdx + 1 && e.clientY > mid) {
+          // Swap down
+          [this.shortcuts[currentIdx], this.shortcuts[sibIdx]] = [this.shortcuts[sibIdx], this.shortcuts[currentIdx]];
+          currentIdx = sibIdx;
+          startY = e.clientY;
+          item.style.transform = '';
+          this.buildReorderSection(section);
+          const newItem = list.querySelector(`[data-idx="${currentIdx}"]`) as HTMLElement;
+          if (newItem) { newItem.classList.add('action-reorder-dragging'); }
+          return;
+        }
+      }
+    };
+
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+
+      item.style.transform = '';
+      item.classList.remove('action-reorder-dragging');
+
+      this.saveShortcuts();
+      this.buildShortcutItems();
+      this.buildReorderSection(section);
+    };
+
+    handle.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      dragging = true;
+      startY = e.clientY;
+      currentIdx = parseInt(item.dataset['idx'] ?? '0', 10);
+      item.classList.add('action-reorder-dragging');
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  }
+
+  // ── Popup item ────────────────────────────────────────────────────────────
 
   private isInShortcuts(type: 'action' | 'mode', index: number): boolean {
     return this.shortcuts.some((s) => s.type === type && s.index === index);
@@ -312,14 +583,17 @@ export class ActionBar {
         } else {
           this.shortcuts.push({ type, index: itemIdx });
         }
+        this.saveShortcuts();
         this.buildShortcutItems();
         this.rebuildPopupGrid();
       });
       item.appendChild(badge);
     } else {
+      // Popup stays open — just trigger the action and show flash
       item.addEventListener('click', () => {
+        item.classList.add('action-popup-item--flash');
+        setTimeout(() => item.classList.remove('action-popup-item--flash'), 300);
         this.onAction(action);
-        this.closePopup();
       });
     }
 
@@ -329,7 +603,6 @@ export class ActionBar {
   private openPopupInEditMode(): void {
     if (this.popup) this.closePopup();
     this.openPopup();
-    // Switch to edit mode
     this.editing = true;
     const editBtn = this.popup?.querySelector('.action-popup-edit-btn') as HTMLButtonElement;
     if (editBtn) editBtn.textContent = 'Done';

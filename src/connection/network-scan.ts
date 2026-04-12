@@ -1,9 +1,14 @@
 /**
  * Network scanner for auto-detecting Unitree Go2 robots.
  *
- * Uses the /scan endpoint served by the Vite dev server plugin (proxy-plugin.ts)
- * which performs UDP multicast on 231.1.1.1:10131.
+ * On web/dev: uses the /scan endpoint served by the Vite dev server plugin
+ * (proxy-plugin.ts) which performs UDP multicast on 231.1.1.1:10131.
+ *
+ * On Capacitor (iOS): UDP multicast is not available from a WKWebView.
+ * The scan is disabled — user must enter the robot IP manually.
  */
+
+import { isCapacitor } from '../platform';
 
 export interface ScanResult {
   sn: string;
@@ -14,6 +19,11 @@ export interface ScanResult {
 export async function scanForRobots(
   onProgress?: (msg: string) => void,
 ): Promise<ScanResult[]> {
+  if (isCapacitor) {
+    onProgress?.('Network scan is not available on iOS. Please enter the robot IP manually.');
+    return [];
+  }
+
   onProgress?.('Starting UDP multicast scan...');
 
   try {

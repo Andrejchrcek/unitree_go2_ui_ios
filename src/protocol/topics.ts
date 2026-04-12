@@ -86,6 +86,28 @@ export const SPORT_CMD = {
   WalkStair: 1049,
 } as const;
 
+export const AUDIOHUB_CMD = {
+  List:         1001,
+  Play:         1002,
+  Stop:         1003,
+  Resume:       1004,
+  Prev:         1005,
+  Next:         1006,
+  SetPlayMode:  1007,
+  MegaphoneOn:  4001,
+  MegaphoneOff: 4002,
+} as const;
+
+export const VUI_CMD = {
+  AudioSet:   1001,
+  AudioGet:   1002,
+  VolumeSet:  1003,
+  VolumeGet:  1004,
+  LightSet:   1005,
+  LightGet:   1006,
+  LightColor: 1007,
+} as const;
+
 export const DATA_CHANNEL_TYPE = {
   VALIDATION: 'validation',
   SUBSCRIBE: 'subscribe',

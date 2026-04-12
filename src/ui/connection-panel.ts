@@ -1,6 +1,7 @@
 import type { ConnectionMode, ConnectionConfig } from '../types';
 import { MODE_LABELS, DEFAULT_AP_IP } from '../connection/modes';
 import { scanForRobots } from '../connection/network-scan';
+import { isCapacitor } from '../platform';
 
 export type ConnectHandler = (config: ConnectionConfig) => void;
 
@@ -78,6 +79,11 @@ export class ConnectionPanel {
     this.statusEl = this.container.querySelector('#connection-status')!;
     this.authToggle = this.container.querySelector('#auth-toggle')!;
 
+    // Hide scan button on iOS — UDP multicast not available in WKWebView
+    if (isCapacitor) {
+      this.scanBtn.style.display = 'none';
+    }
+
     // Populate mode selector
     for (const [mode, label] of Object.entries(MODE_LABELS)) {
       const option = document.createElement('option');
@@ -99,7 +105,9 @@ export class ConnectionPanel {
     this.scanBtn.addEventListener('click', () => this.handleScan());
 
     this.modeSelect.value = 'STA-L';
-    this.ipInput.value = '';
+    // Restore last used IP from localStorage
+    const lastIp = localStorage.getItem('go2_last_ip');
+    this.ipInput.value = lastIp ?? '';
     this.ipInput.placeholder = 'Robot IP on local network';
     this.updateVisibility();
   }
@@ -148,14 +156,20 @@ export class ConnectionPanel {
 
   private handleConnect(): void {
     const mode = this.modeSelect.value as ConnectionMode;
+    const ip = this.ipInput.value.trim();
     const config: ConnectionConfig = {
       mode,
-      ip: this.ipInput.value.trim(),
+      ip,
       token: this.tokenInput.value.trim(),
       serialNumber: this.snInput.value.trim(),
       email: this.emailInput.value.trim(),
       password: this.passwordInput.value.trim(),
     };
+
+    // Save last used IP (only for local modes)
+    if (ip && mode !== 'STA-T') {
+      localStorage.setItem('go2_last_ip', ip);
+    }
 
     this.onConnect(config);
   }

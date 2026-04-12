@@ -7,14 +7,17 @@ import { PipCamera } from './components/pip-camera';
 import { SettingBar, EmergencyStop } from './components/side-buttons';
 import { StatusPage } from './components/status-page';
 import { ServicesPage, type ServiceEntry } from './components/services-page';
+import { AudioPage } from './components/audio-page';
+import { FloatingPlayer } from './components/floating-player';
+import { SettingsPanel } from './components/settings-panel';
 import { connectLocal } from '../connection/local-connector';
 import { connectRemote, loginWithEmail } from '../connection/remote-connector';
 import { DataChannelHandler } from '../protocol/data-channel';
-import { RTC_TOPIC, SPORT_CMD, DATA_CHANNEL_TYPE } from '../protocol/topics';
+import { RTC_TOPIC, SPORT_CMD, DATA_CHANNEL_TYPE, VUI_CMD } from '../protocol/topics';
 import type { WebRTCConnection } from '../connection/webrtc';
 import type { Scene3D } from './scene/scene';
 
-type Screen = 'connection' | 'hub' | 'control' | 'status' | 'services';
+type Screen = 'connection' | 'hub' | 'control' | 'status' | 'services' | 'audio';
 
 export class App {
   private root: HTMLElement;
@@ -34,18 +37,26 @@ export class App {
   private actionBar: ActionBar | null = null;
   private scene3d: Scene3D | null = null;
   private settingBar: SettingBar | null = null;
+  private settingsPanel: SettingsPanel | null = null;
 
   // Status page
   private statusPage: StatusPage | null = null;
 
   // Services page
   private servicesPage: ServicesPage | null = null;
+
+  // Audio page
+  private audioPage: AudioPage | null = null;
+  private floatingPlayer: FloatingPlayer | null = null;
   private serviceEntries: ServiceEntry[] = [];
   private serviceReportTimer: ReturnType<typeof setInterval> | null = null;
 
   // Joystick state
   private joystickState = { lx: 0, ly: 0, rx: 0, ry: 0 };
   private joystickTimer: ReturnType<typeof setInterval> | null = null;
+  private joystick1: import('./components/joystick').Joystick | null = null;
+  private joystick2: import('./components/joystick').Joystick | null = null;
+  private joysticksEnabled = true;
 
   // Robot state (accumulated from topic messages)
   private robotState = {
@@ -72,10 +83,25 @@ export class App {
     selfTestResults: [] as string[],
   };
 
+  // Background disconnect grace period
+  private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private pageHidden = false;
+
   constructor(root: HTMLElement) {
     this.root = root;
     root.innerHTML = '';
     root.className = 'app-root';
+
+    // Suppress disconnect while app is in background (iOS minimise)
+    document.addEventListener('visibilitychange', () => {
+      this.pageHidden = document.hidden;
+      if (!document.hidden && this.disconnectTimer) {
+        // App came back to foreground before grace period ended — cancel
+        clearTimeout(this.disconnectTimer);
+        this.disconnectTimer = null;
+      }
+    });
+
     this.showConnectionScreen();
   }
 
@@ -138,6 +164,18 @@ export class App {
     svcBtn.addEventListener('click', () => this.showServicesScreen());
     btnRow.appendChild(svcBtn);
 
+    // Audio button
+    const audioBtn = document.createElement('button');
+    audioBtn.className = 'hub-btn hub-btn-secondary';
+    audioBtn.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 11v2"/><path d="M18 8c1.5 1.5 2 3.5 2 4s-.5 2.5-2 4"/>
+      <path d="M14.5 5.5C17 7.5 18.5 10 18.5 12s-1.5 4.5-4 6.5"/>
+      <rect x="1" y="9" width="4" height="6" rx="1"/>
+      <path d="M5 9l7-6v18l-7-6"/>
+    </svg><span>Audio</span>`;
+    audioBtn.addEventListener('click', () => this.showAudioScreen());
+    btnRow.appendChild(audioBtn);
+
     hub.appendChild(btnRow);
 
     // Disconnect button
@@ -165,8 +203,17 @@ export class App {
     // Nav bar (top) — back goes to hub, not disconnect
     this.navBar = new NavBar(this.controlUi, () => this.goToHub());
 
-    // PIP camera
+    // PIP camera — hide immediately if saved setting says so (prevents flash)
     this.pipCamera = new PipCamera(this.controlUi);
+    {
+      const saved = localStorage.getItem('go2_ui_settings');
+      if (saved) {
+        try {
+          const s = JSON.parse(saved) as { pipVisible?: boolean };
+          if (s.pipVisible === false) this.pipCamera.setHidden(true);
+        } catch { /* ignore */ }
+      }
+    }
     if (this.videoStream) {
       this.pipCamera.setStream(this.videoStream);
     }
@@ -178,10 +225,72 @@ export class App {
       onLidarToggle: (enabled) => this.sendLidarToggle(enabled),
       onLampSet: (level) => this.sendLamp(level),
       onVolumeSet: (level) => this.sendVolume(level),
+      onPipToggle: (visible) => {
+        this.pipCamera?.setHidden(!visible);
+        // When PIP becomes visible again, restore the correct content for current view mode
+        if (visible) {
+          const threeCanvas = document.getElementById('three-canvas') as HTMLCanvasElement | null;
+          if (this.viewMode === 'video' && threeCanvas) {
+            this.pipCamera?.showVoxel(threeCanvas);
+          } else {
+            this.pipCamera?.showCamera();
+          }
+        }
+      },
+      onJoystickToggle: (enabled) => {
+        this.joysticksEnabled = enabled;
+        this.joystick1?.setDisabled(!enabled);
+        this.joystick2?.setDisabled(!enabled);
+        if (!enabled) {
+          this.joystickState = { lx: 0, ly: 0, rx: 0, ry: 0 };
+        }
+      },
+      onSettingsOpen: () => this.settingsPanel?.toggle(),
     });
+
+    // Create settings panel (needs controlUi as parent for overlay)
+    this.settingsPanel = new SettingsPanel(this.controlUi, {
+      onIconSizeChange:   (size)    => this.actionBar?.setIconSize(size),
+      onShowLabelsChange: (show)    => this.actionBar?.setShowLabels(show),
+      onShortcutsChange:  ()        => this.actionBar?.refreshShortcuts(),
+      onPipChange: (visible) => {
+        this.pipCamera?.setHidden(!visible);
+        if (visible) {
+          const threeCanvas = document.getElementById('three-canvas') as HTMLCanvasElement | null;
+          if (threeCanvas && this.viewMode === 'three') this.pipCamera?.showVoxel(threeCanvas);
+          else this.pipCamera?.showCamera();
+        }
+      },
+      onJoysticksChange: (enabled) => {
+        this.joysticksEnabled = enabled;
+        this.joystick1?.setDisabled(!enabled);
+        this.joystick2?.setDisabled(!enabled);
+        if (!enabled) this.joystickState = { lx: 0, ly: 0, rx: 0, ry: 0 };
+      },
+      onResetLayout: () => {
+        // Destroy and recreate the control screen so positions reset
+        setTimeout(() => location.reload(), 300);
+      },
+    });
+
+    // Apply saved settings immediately (before user interacts)
+    const initSettings = this.settingBar.getInitialSettings();
+    if (!initSettings.pipVisible) {
+      this.pipCamera?.setHidden(true);
+    }
+    if (!initSettings.joysticksOn) {
+      // joysticks aren't created yet — mark flag, setDisabled called after creation below
+      this.joysticksEnabled = false;
+    }
 
     // Emergency stop
     new EmergencyStop(this.controlUi, (active) => this.sendStop(active));
+
+    // Floating MP3 player
+    const robotIp = this.connectionConfig?.ip ?? '';
+    if (robotIp) {
+      this.floatingPlayer = new FloatingPlayer(this.controlUi, robotIp);
+    }
 
     // Operation layout
     const opWrapper = document.createElement('div');
@@ -189,7 +298,7 @@ export class App {
 
     const w1 = document.createElement('div');
     w1.className = 'wrapper-1';
-    new Joystick(w1, (out) => {
+    this.joystick1 = new Joystick(w1, (out) => {
       this.joystickState.lx = out.x;
       this.joystickState.ly = out.y;
     }, () => {
@@ -198,16 +307,14 @@ export class App {
     });
     opWrapper.appendChild(w1);
 
+    // wrapper-2 is just a spacer to keep joysticks on the sides
     const w2 = document.createElement('div');
     w2.className = 'wrapper-2';
-    this.actionBar = new ActionBar(w2, (action) => {
-      this.dataHandler?.publishRequest(RTC_TOPIC.SPORT_MOD, action.apiId, action.param);
-    });
     opWrapper.appendChild(w2);
 
     const w3 = document.createElement('div');
     w3.className = 'wrapper-3';
-    new Joystick(w3, (out) => {
+    this.joystick2 = new Joystick(w3, (out) => {
       this.joystickState.rx = out.x;
       this.joystickState.ry = out.y;
     }, () => {
@@ -216,7 +323,18 @@ export class App {
     });
     opWrapper.appendChild(w3);
 
+    // ActionBar floats absolutely — grows freely without pushing joysticks
+    this.actionBar = new ActionBar(this.controlUi, (action) => {
+      this.dataHandler?.publishRequest(RTC_TOPIC.SPORT_MOD, action.apiId, action.param);
+    });
+
     this.controlUi.appendChild(opWrapper);
+
+    // Apply saved joystick state after joysticks are created
+    if (!this.joysticksEnabled) {
+      this.joystick1?.setDisabled(true);
+      this.joystick2?.setDisabled(true);
+    }
 
     this.startJoystickLoop();
 
@@ -262,6 +380,21 @@ export class App {
     this.requestServiceReport();
   }
 
+  private showAudioScreen(): void {
+    this.currentScreen = 'audio';
+    this.root.innerHTML = '';
+    this.root.className = 'app-root audio-screen';
+
+    if (!this.dataHandler) return;
+    const robotIp = this.connectionConfig?.ip ?? '';
+    this.audioPage = new AudioPage(
+      this.root,
+      () => this.goToHub(),
+      this.dataHandler,
+      robotIp,
+    );
+  }
+
   private goToHub(): void {
     // Clean up control UI resources without disconnecting
     this.stopJoystickLoop();
@@ -271,11 +404,19 @@ export class App {
     this.navBar = null;
     this.actionBar = null;
     this.settingBar = null;
+    this.settingsPanel?.close();
+    this.settingsPanel = null;
+    this.joystick1 = null;
+    this.joystick2 = null;
+    this.joysticksEnabled = true;
+    this.floatingPlayer?.destroy();
+    this.floatingPlayer = null;
     this.scene3d?.destroy();
     this.scene3d = null;
     this.statusPage = null;
     this.servicesPage = null;
-    this.viewMode = 'three';
+    this.audioPage = null;
+    // Don't reset viewMode — keep it so next time control opens it restores correctly
     this.showHubScreen();
   }
 
@@ -286,6 +427,16 @@ export class App {
       canvas.id = 'three-canvas';
       this.root.insertBefore(canvas, this.controlUi);
       this.scene3d = new S3D(canvas);
+
+      // Restore saved view mode after scene is ready
+      try {
+        const saved = localStorage.getItem(App.VIEW_MODE_KEY) as 'three' | 'video' | null;
+        if (saved === 'video') {
+          this.setViewMode('video');
+        } else {
+          this.setViewMode('three');
+        }
+      } catch { this.setViewMode('three'); }
     } catch (err) {
       console.warn('[go2:ui] WebGL not available:', err);
       this.root.classList.add('no-webgl');
@@ -294,6 +445,7 @@ export class App {
 
   // ── View Toggle: 'three' (3D full, camera PIP) or 'video' (camera full) ──
 
+  private static VIEW_MODE_KEY = 'go2_view_mode';
   private viewMode: 'three' | 'video' = 'three';
   private videoBg: HTMLVideoElement | null = null;
   private noiseBgCanvas: HTMLCanvasElement | null = null;
@@ -305,6 +457,7 @@ export class App {
 
   private setViewMode(mode: 'three' | 'video'): void {
     this.viewMode = mode;
+    try { localStorage.setItem(App.VIEW_MODE_KEY, mode); } catch { /* ignore */ }
     const threeCanvas = document.getElementById('three-canvas') as HTMLCanvasElement | null;
     if (!threeCanvas) return;
 
@@ -594,9 +747,10 @@ export class App {
     if (code !== 0 || typeof d.data !== 'string') return;
     try {
       const parsed = JSON.parse(d.data) as { volume?: number; brightness?: number };
-      if (apiId === 1004 && parsed.volume !== undefined) {
+      if (apiId === VUI_CMD.VolumeGet && parsed.volume !== undefined) {
         this.settingBar?.setVolume(parsed.volume);
-      } else if (apiId === 1006 && parsed.brightness !== undefined) {
+        this.audioPage?.setVolume(parsed.volume);
+      } else if (apiId === VUI_CMD.LightGet && parsed.brightness !== undefined) {
         this.settingBar?.setBrightness(parsed.brightness);
       }
     } catch { /* malformed */ }
@@ -878,18 +1032,32 @@ export class App {
         this.connectionPanel?.setStatus('Connected, awaiting validation...', 'info');
         break;
       case 'disconnected':
-        if (this.currentScreen !== 'connection') {
-          // Lost connection while in hub/control/status — show message and go back
-          this.disconnect();
-          this.connectionPanel?.setStatus('Connection lost — robot disconnected', 'error');
+        // If app is in background (iOS minimise), wait up to 8 s before disconnecting
+        if (this.pageHidden) {
+          // App is in background (call, swipe away) — wait 5 minutes before disconnecting
+          if (!this.disconnectTimer) {
+            this.disconnectTimer = setTimeout(() => {
+              this.disconnectTimer = null;
+              this.handleDisconnected();
+            }, 5 * 60 * 1000);
+          }
         } else {
-          this.disconnect();
+          this.handleDisconnected();
         }
         break;
       case 'failed':
         this.disconnect();
         this.connectionPanel?.setStatus('WebRTC connection failed — check network', 'error');
         break;
+    }
+  }
+
+  private handleDisconnected(): void {
+    if (this.currentScreen !== 'connection') {
+      this.disconnect();
+      this.connectionPanel?.setStatus('Connection lost — robot disconnected', 'error');
+    } else {
+      this.disconnect();
     }
   }
 

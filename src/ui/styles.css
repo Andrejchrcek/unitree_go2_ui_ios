@@ -11,13 +11,16 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: #212333;
   color: #e0e0e0;
+  /* True edge-to-edge: no padding here. Safe-area applied per-element below. */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   touch-action: none;
 }
 
 #app {
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
 }
 
@@ -31,6 +34,7 @@ body {
 
 .connection-modal {
   width: 360px;
+  max-width: calc(100vw - 32px);
   background: #1a1d23;
   border: 1px solid #2a2d35;
   border-radius: 12px;
@@ -202,8 +206,9 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 60px;
-  padding: 0 24px;
+  /* Expand height to include the notch/Dynamic Island safe area */
+  height: calc(60px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 24px 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -356,10 +361,10 @@ body {
 /* ── PIP Camera (Small View, Draggable) ── */
 .pip-camera {
   position: absolute;
-  top: 56px;
-  left: 12px;
-  width: 385px;
-  height: 260px;
+  top: calc(56px + env(safe-area-inset-top));
+  left: max(12px, calc(12px + env(safe-area-inset-left)));
+  width: min(385px, calc(100vw - 24px));
+  height: min(260px, 35vw);
   background: #282828;
   border-radius: 8px;
   overflow: hidden;
@@ -405,7 +410,7 @@ body {
   right: 0;
   display: flex;
   align-items: flex-end;
-  padding: 0 24px 15px 24px;
+  padding: 0 max(24px, calc(24px + env(safe-area-inset-left))) max(15px, calc(15px + env(safe-area-inset-bottom))) max(24px, calc(24px + env(safe-area-inset-right)));
   z-index: 15;
   pointer-events: none;
 }
@@ -487,24 +492,40 @@ body {
 }
 
 .joystick-box.disable {
-  opacity: 0.3;
+  opacity: 0;
   pointer-events: none;
 }
 
 /* ── Setting Bar (Side Icons: Radar, Volume, Lamp) ── */
 .setting-bar {
   position: absolute;
-  top: 70px;
-  right: 18px;
-  height: 58px;
+  top: calc(70px + env(safe-area-inset-top));
+  right: max(18px, calc(18px + env(safe-area-inset-right)));
   background: #111127;
   border-radius: 82px;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 0 10px;
+  padding: 4px 10px 6px;
   gap: 4px;
   z-index: 20;
+  flex-direction: column;
+  touch-action: none;
+}
+
+/* Drag grip at top of settings bar */
+.setting-bar-grip {
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 2px 0;
+  touch-action: none;
+  flex-shrink: 0;
+}
+.setting-bar-grip:active {
+  cursor: grabbing;
 }
 
 .setting-btn {
@@ -533,7 +554,7 @@ body {
 /* ── Emergency Stop (APK: swipe-left to activate) ── */
 .emergency-stop {
   position: absolute;
-  top: 142px;
+  top: calc(142px + env(safe-area-inset-top));
   right: 0;
   height: 28px;
   background-color: #ff4848;
@@ -594,10 +615,29 @@ body {
   }
 }
 
-/* ── Action Bar (oval island with grid icon + scrollable actions) ── */
+/* ── Action Bar (floats absolutely over controlUi, grows with content) ── */
 .action-bar-container {
-  position: relative;
-  max-width: 420px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  touch-action: none;
+  z-index: 20;
+}
+
+/* Grip handle on the action bar island */
+.action-bar-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 38px;
+  cursor: grab;
+  flex-shrink: 0;
+  touch-action: none;
+  padding: 0 4px;
+}
+.action-bar-grip:active {
+  cursor: grabbing;
 }
 
 .action-island {
@@ -703,18 +743,32 @@ body {
   white-space: nowrap;
 }
 
+/* ── Icon size variants (data-icon-size on .action-island) ── */
+.action-island[data-icon-size="small"]  .action-icon-wrap { width: 24px; height: 24px; }
+.action-island[data-icon-size="small"]  .action-island-item { width: 40px; min-width: 40px; height: 40px; }
+.action-island[data-icon-size="medium"] .action-icon-wrap { width: 34px; height: 34px; }
+.action-island[data-icon-size="medium"] .action-island-item { width: 54px; min-width: 54px; height: 48px; }
+.action-island[data-icon-size="large"]  .action-icon-wrap { width: 44px; height: 44px; }
+.action-island[data-icon-size="large"]  .action-island-item { width: 66px; min-width: 66px; height: 60px; }
+
+/* ── Labels toggle (data-labels on .action-island) ── */
+.action-island[data-labels="false"] .action-island-item > span { display: none; }
+
+/* ── Item in-bar highlight for settings panel ── */
+.settings-item-inbar { background: rgba(104, 121, 228, 0.12); }
+
 /* ── Action Popup (grid of all actions/modes) ── */
 .action-popup {
   position: absolute;
   bottom: 60px;
   left: 50%;
   transform: translateX(-50%);
-  width: 480px;
-  max-height: 360px;
+  width: 220px;
+  max-height: min(420px, 60vh);
   overflow-y: auto;
   background: rgba(17, 17, 39, 0.95);
   border-radius: 14px;
-  padding: 14px;
+  padding: 12px;
   z-index: 30;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(10px);
@@ -764,8 +818,8 @@ body {
 
 .action-popup-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
 }
 
 .action-popup-item {
@@ -773,19 +827,27 @@ body {
   flex-direction: column;
   align-items: center;
   cursor: pointer;
-  padding: 8px 4px;
+  padding: 6px 2px;
   border-radius: 10px;
   position: relative;
   transition: background 0.15s;
 }
 
-.action-popup-item:active {
-  background: rgba(104, 121, 228, 0.2);
+.action-popup-item:active,
+.action-popup-item--flash {
+  background: rgba(104, 121, 228, 0.25);
+}
+@keyframes popup-item-flash {
+  0%   { background: rgba(104,121,228,0.4); }
+  100% { background: transparent; }
+}
+.action-popup-item--flash {
+  animation: popup-item-flash 0.3s ease-out forwards;
 }
 
 .action-popup-icon {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -798,14 +860,14 @@ body {
 }
 
 .action-popup-label {
-  font-size: 10px;
+  font-size: 9px;
   color: #ccc;
-  margin-top: 4px;
+  margin-top: 3px;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 60px;
+  max-width: 56px;
 }
 
 /* +/- badges for edit mode */
@@ -1364,3 +1426,1089 @@ body {
   color: #FCD335;
   animation: toastFade 3s forwards;
 }
+
+/* ── iPhone / Mobile Responsive ── */
+@media (max-width: 480px) {
+  /* Scale joysticks down on small iPhones */
+  .joystick-box {
+    width: 120px;
+    height: 120px;
+  }
+
+  .joystick-knob {
+    width: 52px;
+    height: 52px;
+  }
+
+  /* Tighter bottom padding */
+  .operation-wrapper {
+    padding: 0 12px 12px 12px;
+  }
+
+  /* Action bar compact */
+  .action-island-item {
+    width: 46px;
+    min-width: 46px;
+    height: 44px;
+  }
+
+  /* Hub screen full width */
+  .hub-container {
+    width: 100%;
+    padding: 0 16px;
+  }
+
+  .hub-btn {
+    width: 120px;
+    height: 100px;
+  }
+
+  /* Motor table horizontal scroll */
+  .status-motor-header,
+  .status-motor-row {
+    font-size: 10px;
+  }
+}
+
+/* Landscape iPhone — shrink controls to not block the view */
+@media (max-height: 430px) and (orientation: landscape) {
+  .joystick-box {
+    width: 110px;
+    height: 110px;
+  }
+
+  .nav-bar {
+    height: 44px;
+  }
+
+  .pip-camera {
+    width: min(260px, 38vw);
+    height: min(160px, 28vw);
+  }
+
+  .operation-wrapper {
+    padding: 0 16px 8px 16px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ── Audio Page ─────────────────────────────────────────────────────────��
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.app-root.audio-screen {
+  background: #0f1114;
+  overflow: hidden;
+}
+
+.audio-page {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.audio-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: #2a2d35 transparent;
+}
+
+/* Live badge in header */
+.audio-live-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #4aef7a;
+  background: rgba(74, 239, 122, 0.12);
+  border: 1px solid rgba(74, 239, 122, 0.3);
+  padding: 3px 10px;
+  border-radius: 10px;
+  letter-spacing: 1px;
+  animation: livePulse 1.2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* Section */
+.audio-section {
+  padding: 16px 20px;
+}
+
+.audio-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6879e4;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
+}
+
+.audio-section-sub {
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 12px;
+  margin-top: -6px;
+}
+
+.audio-divider {
+  border: none;
+  border-top: 1px solid #1a1d23;
+  margin: 0;
+}
+
+/* ── Megaphone button ── */
+.audio-mega-btn {
+  width: 100%;
+  background: #141620;
+  border: 1px solid #2a2d35;
+  border-radius: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: background 0.2s, border-color 0.2s;
+  text-align: left;
+}
+
+.audio-mega-btn--on {
+  background: rgba(74, 239, 122, 0.07);
+  border-color: rgba(74, 239, 122, 0.35);
+  box-shadow: 0 0 16px rgba(74, 239, 122, 0.08);
+}
+
+.audio-mega-btn:active {
+  opacity: 0.8;
+}
+
+.audio-mega-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.audio-mega-btn--on .audio-mega-icon {
+  background: rgba(74, 239, 122, 0.12);
+}
+
+.audio-mega-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.audio-mega-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.audio-mega-btn--on .audio-mega-title {
+  color: #4aef7a;
+}
+
+.audio-mega-hint {
+  font-size: 12px;
+  color: #555;
+}
+
+/* iOS-style toggle */
+.audio-mega-toggle {
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background: #2a2d35;
+  position: relative;
+  transition: background 0.25s;
+  flex-shrink: 0;
+}
+
+.audio-mega-toggle--on {
+  background: #4aef7a;
+}
+
+.audio-mega-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.25s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+
+.audio-mega-toggle--on .audio-mega-knob {
+  transform: translateX(18px);
+}
+
+/* ── Volume slider ── */
+.audio-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.audio-vol-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #6879e4 0%, #6879e4 70%, #2a2d35 70%);
+  outline: none;
+  cursor: pointer;
+}
+
+.audio-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #6879e4;
+  box-shadow: 0 0 6px rgba(104, 121, 228, 0.5);
+  cursor: pointer;
+}
+
+.audio-vol-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #6879e4;
+  min-width: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Quick sounds grid ── */
+.audio-sounds-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.audio-sound-btn {
+  background: #141620;
+  border: 1px solid #2a2d35;
+  border-radius: 12px;
+  padding: 12px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.audio-sound-btn:active,
+.audio-sound-btn--flash {
+  background: rgba(104, 121, 228, 0.15);
+  border-color: rgba(104, 121, 228, 0.5);
+}
+
+.audio-sound-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.audio-sound-name {
+  font-size: 11px;
+  color: #888;
+  font-weight: 500;
+}
+
+/* ── AudioHub player ── */
+.audio-player-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.audio-player-btn {
+  flex: 1;
+  background: #141620;
+  border: 1px solid #2a2d35;
+  border-radius: 12px;
+  padding: 12px 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.15s, border-color 0.15s;
+  min-width: 0;
+}
+
+.audio-player-btn:active {
+  background: rgba(104, 121, 228, 0.12);
+  border-color: rgba(104, 121, 228, 0.4);
+}
+
+.audio-player-btn--accent {
+  background: rgba(104, 121, 228, 0.1);
+  border-color: rgba(104, 121, 228, 0.35);
+}
+
+.audio-player-btn--accent:active {
+  background: rgba(104, 121, 228, 0.25);
+}
+
+.audio-player-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.audio-player-label {
+  font-size: 10px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ── Audio page — player header row ── */
+.audio-player-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.audio-player-header-row .audio-section-label {
+  margin: 0;
+}
+
+/* ── Audio icon button (refresh etc.) ── */
+.audio-icon-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  color: #aaa;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.audio-icon-btn:active {
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+}
+
+/* ── Stop button ── */
+.audio-stop-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(239,68,68,0.15);
+  border: 1px solid rgba(239,68,68,0.35);
+  border-radius: 10px;
+  color: #ef4444;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 18px;
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 12px;
+  transition: background 0.15s;
+}
+.audio-stop-btn:active {
+  background: rgba(239,68,68,0.28);
+}
+
+/* ── File list ── */
+.audio-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.audio-file-empty {
+  color: #666;
+  font-size: 13px;
+  text-align: center;
+  padding: 16px 0;
+  margin: 0;
+  line-height: 1.6;
+}
+.audio-file-error {
+  color: #ef4444;
+}
+.audio-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.audio-file-row--playing {
+  background: rgba(74,239,122,0.08);
+  border-color: rgba(74,239,122,0.35);
+}
+.audio-file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.audio-file-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e5e5e5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.audio-file-row--playing .audio-file-name {
+  color: #4aef7a;
+}
+.audio-file-size {
+  font-size: 11px;
+  color: #666;
+}
+.audio-file-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+.audio-file-play-btn,
+.audio-file-del-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+  border: 1px solid transparent;
+}
+.audio-file-play-btn {
+  background: rgba(74,239,122,0.15);
+  color: #4aef7a;
+  border-color: rgba(74,239,122,0.3);
+}
+.audio-file-play-btn:active {
+  background: rgba(74,239,122,0.3);
+}
+.audio-file-del-btn {
+  background: rgba(239,68,68,0.1);
+  color: #ef4444;
+  border-color: rgba(239,68,68,0.2);
+}
+.audio-file-del-btn:active {
+  background: rgba(239,68,68,0.22);
+}
+
+/* ── Upload section ── */
+.audio-upload-section {
+  padding-bottom: 24px;
+}
+.audio-upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+  padding: 12px;
+  background: rgba(255,255,255,0.07);
+  border: 2px dashed rgba(255,255,255,0.2);
+  border-radius: 12px;
+  color: #bbb;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  margin-top: 4px;
+}
+.audio-upload-btn:active {
+  background: rgba(255,255,255,0.13);
+  border-color: rgba(255,255,255,0.35);
+  color: #fff;
+}
+.audio-upload-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.audio-upload-status {
+  font-size: 12px;
+  margin: 8px 0 0 0;
+  min-height: 18px;
+}
+.audio-upload-status--ok    { color: #4aef7a; }
+.audio-upload-status--error { color: #ef4444; }
+.audio-upload-status--info  { color: #aaa; }
+
+/* ── Now Playing card ── */
+.audio-now-playing {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(74,239,122,0.1), rgba(74,239,122,0.05));
+  border: 1px solid rgba(74,239,122,0.3);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.audio-np-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.audio-np-bars span {
+  display: block;
+  width: 3px;
+  background: #4aef7a;
+  border-radius: 2px;
+  animation: np-bar 0.8s ease-in-out infinite alternate;
+}
+.audio-np-bars span:nth-child(1) { height: 60%; animation-delay: 0s; }
+.audio-np-bars span:nth-child(2) { height: 100%; animation-delay: 0.15s; }
+.audio-np-bars span:nth-child(3) { height: 75%; animation-delay: 0.3s; }
+.audio-np-bars span:nth-child(4) { height: 45%; animation-delay: 0.45s; }
+@keyframes np-bar {
+  from { transform: scaleY(0.4); }
+  to   { transform: scaleY(1); }
+}
+.audio-np-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.audio-np-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #4aef7a;
+  letter-spacing: 0.08em;
+}
+.audio-np-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e5e5e5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Floating MP3 Player (control view)
+   ═══════════════════════════════════════════════════════════ */
+.float-player {
+  position: absolute;
+  bottom: calc(180px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(18, 18, 22, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 30px;
+  padding: 7px 10px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.45);
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  transition: border-color 0.25s;
+}
+.float-player--playing {
+  border-color: rgba(74,239,122,0.35);
+}
+.float-player-icon {
+  color: #666;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+.float-player--playing .float-player-icon {
+  color: #4aef7a;
+}
+.float-player-track {
+  background: none;
+  border: none;
+  color: #bbb;
+  font-size: 12px;
+  font-weight: 500;
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  padding: 0 4px;
+  text-align: left;
+  flex-shrink: 1;
+}
+.float-player-track--playing {
+  color: #4aef7a;
+}
+.float-player-divider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255,255,255,0.12);
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+.float-player-btn {
+  background: none;
+  border: none;
+  color: #aaa;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.float-player-btn:active {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+.float-player-btn--play {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  width: 32px;
+  height: 32px;
+}
+.float-player--playing .float-player-btn--play {
+  background: rgba(74,239,122,0.2);
+  color: #4aef7a;
+}
+
+/* ── Floating player list popup ── */
+.float-player-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(22,22,28,0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 16px;
+  padding: 6px;
+  min-width: 190px;
+  max-width: 240px;
+  max-height: 260px;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  z-index: 10;
+}
+.float-player-popup-empty {
+  color: #666;
+  font-size: 12px;
+  text-align: center;
+  padding: 12px;
+  margin: 0;
+}
+.float-player-popup-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 12px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.float-player-popup-row:active,
+.float-player-popup-row:hover {
+  background: rgba(255,255,255,0.07);
+}
+.float-player-popup-row--active {
+  color: #4aef7a;
+  background: rgba(74,239,122,0.08);
+}
+.float-player-popup-row span:nth-child(2) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.float-popup-size {
+  color: #555;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.float-popup-play-icon {
+  flex-shrink: 0;
+  opacity: 0.4;
+}
+.float-player-popup-row--active .float-popup-play-icon {
+  opacity: 1;
+}
+.float-player-popup-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  color: #555;
+  font-size: 11px;
+  padding: 8px 10px;
+  cursor: pointer;
+  margin-top: 4px;
+  border-radius: 0 0 10px 10px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Action bar — drag to reorder (edit mode)
+   ═══════════════════════════════════════════════════════════ */
+.action-reorder-section {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.action-reorder-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.action-reorder-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 8px 10px;
+  touch-action: none;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.action-reorder-item.action-reorder-dragging {
+  opacity: 0.3;
+}
+
+.action-reorder-ghost {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  background: rgba(104,121,228,0.25);
+  border-color: rgba(104,121,228,0.5);
+  z-index: 10;
+  opacity: 0.9;
+}
+
+.action-reorder-handle {
+  font-size: 16px;
+  color: #555;
+  cursor: grab;
+  padding: 0 4px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.action-reorder-handle:active {
+  cursor: grabbing;
+  color: #999;
+}
+
+.action-reorder-item img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.action-reorder-name {
+  flex: 1;
+  font-size: 12px;
+  color: #ccc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-reorder-remove {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+.action-reorder-remove:active {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ── Settings Panel ─────────────────────────────────────────────────────────
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Full-screen dim overlay */
+.settings-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+/* Slide-in panel from the right */
+.settings-panel {
+  position: relative;
+  width: min(360px, 95vw);
+  height: 100%;
+  background: #1a1d28;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+.settings-panel--open {
+  transform: translateX(0);
+}
+
+/* Header */
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+.settings-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.3px;
+}
+.settings-close-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.settings-close-btn:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Scrollable body */
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0 40px;
+  -webkit-overflow-scrolling: touch;
+}
+.settings-body::-webkit-scrollbar { display: none; }
+
+/* Section */
+.settings-section {
+  margin-bottom: 6px;
+}
+.settings-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6879e4;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 14px 18px 6px;
+}
+
+/* Row */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  min-height: 44px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.settings-row-label {
+  font-size: 14px;
+  color: #ddd;
+  flex: 1;
+  margin-right: 12px;
+}
+
+/* Sub-title inside edit areas */
+.settings-sub-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6879e4;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 10px 0 5px;
+}
+
+/* Action button (small, inline) */
+.settings-btn-action {
+  background: rgba(104, 121, 228, 0.18);
+  border: 1px solid rgba(104, 121, 228, 0.4);
+  color: #8a99f0;
+  border-radius: 8px;
+  padding: 5px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.settings-btn-action:active {
+  background: rgba(104, 121, 228, 0.35);
+}
+.settings-btn-danger {
+  border-color: rgba(239, 74, 74, 0.45);
+  color: #f07070;
+  background: rgba(239, 74, 74, 0.1);
+}
+.settings-btn-danger:active {
+  background: rgba(239, 74, 74, 0.25);
+}
+
+/* Segment button group (S / M / L) */
+.settings-btn-group {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.settings-seg-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #aaa;
+  border-radius: 8px;
+  width: 36px;
+  height: 32px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.settings-seg-btn.active {
+  background: rgba(104, 121, 228, 0.3);
+  border-color: rgba(104, 121, 228, 0.6);
+  color: #fff;
+}
+.settings-seg-btn:active {
+  opacity: 0.7;
+}
+
+/* Toggle (iOS-style) */
+.settings-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.settings-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.settings-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: #333;
+  border-radius: 26px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.settings-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.settings-toggle input:checked + .settings-toggle-slider {
+  background: #6879e4;
+}
+.settings-toggle input:checked + .settings-toggle-slider::before {
+  transform: translateX(18px);
+}
+
+/* Text input inside settings */
+.settings-input {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #ddd;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  width: 140px;
+  flex-shrink: 0;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.settings-input::placeholder { color: #555; }
+.settings-input:focus { outline: none; border-color: rgba(104, 121, 228, 0.6); }
+
+/* Shortcuts expand area */
+.settings-shortcuts-area {
+  padding: 0 18px 10px;
+}
+
+/* Badge type indicator (A / M) */
+.settings-badge-type {
+  font-size: 9px;
+  font-weight: 700;
+  color: #888;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin-left: auto;
+  margin-right: 6px;
+}
+

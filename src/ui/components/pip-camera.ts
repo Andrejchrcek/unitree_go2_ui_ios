@@ -12,6 +12,8 @@ export class PipCamera {
 
   // Mini 3D canvas placeholder (will be populated by scene)
   private miniCanvas: HTMLCanvasElement | null = null;
+  // Keep reference so we can restart the mirror after setHidden(false)
+  private mirrorSource: HTMLCanvasElement | null = null;
 
   // Drag state
   private dragging = false;
@@ -20,6 +22,7 @@ export class PipCamera {
   private offsetX = 0;
   private offsetY = 0;
   private hasMoved = false;
+  private static POS_KEY = 'go2_pip_pos';
 
   // View swap callback
   private onTap: (() => void) | null = null;
@@ -53,6 +56,17 @@ export class PipCamera {
     window.addEventListener('pointerup', () => this.onPointerUp());
 
     parent.appendChild(this.container);
+
+    // Restore saved position
+    try {
+      const saved = localStorage.getItem(PipCamera.POS_KEY);
+      if (saved) {
+        const { x, y } = JSON.parse(saved) as { x: number; y: number };
+        this.offsetX = x;
+        this.offsetY = y;
+        this.container.style.transform = `translate(${x}px, ${y}px)`;
+      }
+    } catch { /* ignore */ }
 
     // Start white noise animation
     this.startNoise();
@@ -100,6 +114,7 @@ export class PipCamera {
 
   /** Show voxel/3D scene in PIP (camera is fullscreen) */
   showVoxel(threeCanvas: HTMLCanvasElement): void {
+    this.mirrorSource = threeCanvas;  // remember for restarts
     this.currentContent = 'voxel';
     this.videoEl.style.display = 'none';
     this.noiseCanvas.style.display = 'none';
@@ -222,6 +237,27 @@ export class PipCamera {
     if (!this.hasMoved) {
       if (this.onTap) {
         this.onTap();
+      }
+    } else {
+      // Save position
+      try {
+        localStorage.setItem(PipCamera.POS_KEY, JSON.stringify({ x: this.offsetX, y: this.offsetY }));
+      } catch { /* ignore */ }
+    }
+  }
+
+  /** Show or hide the entire PIP window. */
+  setHidden(hidden: boolean): void {
+    this.container.style.display = hidden ? 'none' : '';
+    if (hidden) {
+      this.stopNoise();
+      this.stopMiniCanvasMirror();
+    } else {
+      // Restart the appropriate animation that was stopped on hide
+      if (this.currentContent === 'voxel' && this.mirrorSource) {
+        this.startMiniCanvasMirror(this.mirrorSource);
+      } else if (this.currentContent === 'camera' && !this.hasStream) {
+        this.startNoise();
       }
     }
   }

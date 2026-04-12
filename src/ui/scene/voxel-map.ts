@@ -122,6 +122,11 @@ export class VoxelMap {
     this.scene.add(this.mesh);
   }
 
+  /** Show or hide the point cloud mesh without discarding the data. */
+  setVisible(visible: boolean): void {
+    if (this.mesh) this.mesh.visible = visible;
+  }
+
   clear(): void {
     if (this.mesh) {
       this.scene.remove(this.mesh);

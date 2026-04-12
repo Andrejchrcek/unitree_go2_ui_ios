@@ -4,3 +4,15 @@ INSTRUCTIONS.md
 test/
 node_modules/
 dist/
+
+# iOS build artifacts
+ios/App/App/public/
+ios/App/Pods/
+ios/App/.build/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# macOS
+.DS_Store

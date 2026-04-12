@@ -1,8 +1,7 @@
 import type { ConnectionCallbacks, SdpPayload, TurnServerInfo } from '../types';
 import { aesEncrypt, aesDecrypt, generateAesKey } from '../crypto/aes';
 import { loadPublicKey, rsaEncrypt } from '../crypto/rsa';
-// Proxy through Vite dev server to avoid CORS issues with Unitree cloud API
-const REMOTE_API_BASE = '/unitree-api';
+import { unitreeApiUrl } from '../platform';
 import { WebRTCConnection } from './webrtc';
 import forge from 'node-forge';
 
@@ -40,7 +39,7 @@ function buildHeaders(token: string): Record<string, string> {
 async function fetchAppPublicKey(token: string): Promise<string> {
   let resp: Response;
   try {
-    resp = await fetch(`${REMOTE_API_BASE}/system/pubKey`, {
+    resp = await fetch(unitreeApiUrl('/system/pubKey'), {
       headers: buildHeaders(token),
       signal: AbortSignal.timeout(10000),
     });
@@ -62,7 +61,7 @@ export async function loginWithEmail(email: string, password: string): Promise<s
   const body = new URLSearchParams({ email, password: pwdHash });
   let resp: Response;
   try {
-    resp = await fetch(`${REMOTE_API_BASE}/login/email`, {
+    resp = await fetch(unitreeApiUrl('/login/email'), {
       method: 'POST',
       headers: buildHeaders(''),
       body,
@@ -93,7 +92,7 @@ async function fetchTurnServerInfo(
   const body = new URLSearchParams({ sn, sk: encryptedKey });
   let resp: Response;
   try {
-    resp = await fetch(`${REMOTE_API_BASE}/webrtc/account`, {
+    resp = await fetch(unitreeApiUrl('/webrtc/account'), {
       method: 'POST',
       headers: buildHeaders(token),
       body,
@@ -139,7 +138,7 @@ async function exchangeSdpRemote(
 
   let resp: Response;
   try {
-    resp = await fetch(`${REMOTE_API_BASE}/webrtc/connect`, {
+    resp = await fetch(unitreeApiUrl('/webrtc/connect'), {
       method: 'POST',
       headers: buildHeaders(token),
       body,

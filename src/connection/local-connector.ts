@@ -3,15 +3,14 @@ import { aesEncrypt, aesDecrypt, aesGcmDecrypt, generateAesKey } from '../crypto
 import { loadPublicKey, rsaEncrypt } from '../crypto/rsa';
 import { LOCAL_PORT, LOCAL_OFFER_PORT } from './modes';
 import { WebRTCConnection } from './webrtc';
+import { robotUrl, robotApiHeaders } from '../platform';
 
-function proxyUrl(path: string): string {
-  return `/robot-api${path}`;
+function proxyUrl(host: string, path: string): string {
+  return robotUrl(host, path);
 }
 
 function proxyHeaders(host: string, contentType?: string): Record<string, string> {
-  const headers: Record<string, string> = { 'X-Robot-Host': host };
-  if (contentType) headers['Content-Type'] = contentType;
-  return headers;
+  return robotApiHeaders(host, contentType);
 }
 
 function extractPathEnding(data1: string): string {
@@ -36,7 +35,7 @@ async function decryptData1(resp: ConNotifyResponse): Promise<string> {
 async function detectPort(ip: string): Promise<'new' | 'old'> {
   // Try port 9991 first (newer firmware), then 8081 (older firmware)
   try {
-    const resp = await fetch(proxyUrl('/con_notify'), {
+    const resp = await fetch(proxyUrl(`${ip}:${LOCAL_PORT}`, '/con_notify'), {
       method: 'POST',
       headers: proxyHeaders(`${ip}:${LOCAL_PORT}`),
       signal: AbortSignal.timeout(3000),
@@ -48,7 +47,7 @@ async function detectPort(ip: string): Promise<'new' | 'old'> {
   } catch { /* port not available */ }
 
   try {
-    const resp = await fetch(proxyUrl('/'), {
+    const resp = await fetch(proxyUrl(`${ip}:${LOCAL_OFFER_PORT}`, '/'), {
       method: 'HEAD',
       headers: proxyHeaders(`${ip}:${LOCAL_OFFER_PORT}`),
       signal: AbortSignal.timeout(3000),
@@ -122,7 +121,7 @@ async function exchangeSdpNew(ip: string, payload: SdpPayload): Promise<string> 
 
   // Step 1: con_notify — get public key
   console.log(`[go2] Sending con_notify to ${host}...`);
-  const notifyResp = await fetch(proxyUrl('/con_notify'), {
+  const notifyResp = await fetch(proxyUrl(host, '/con_notify'), {
     method: 'POST',
     headers: proxyHeaders(host),
   });
@@ -160,7 +159,7 @@ async function exchangeSdpNew(ip: string, payload: SdpPayload): Promise<string> 
   });
 
   console.log(`[go2] Sending con_ing_${pathEnding} (body: ${body.length} bytes)...`);
-  const ingResp = await fetch(proxyUrl(`/con_ing_${pathEnding}`), {
+  const ingResp = await fetch(proxyUrl(host, `/con_ing_${pathEnding}`), {
     method: 'POST',
     headers: proxyHeaders(host, 'application/x-www-form-urlencoded'),
     body,
@@ -185,7 +184,7 @@ async function exchangeSdpOld(ip: string, payload: SdpPayload): Promise<string> 
   const host = `${ip}:${LOCAL_OFFER_PORT}`;
 
   console.log(`[go2] Sending SDP to ${host}/offer...`);
-  const resp = await fetch(proxyUrl('/offer'), {
+  const resp = await fetch(proxyUrl(host, '/offer'), {
     method: 'POST',
     headers: proxyHeaders(host, 'application/json'),
     body: JSON.stringify(payload),
