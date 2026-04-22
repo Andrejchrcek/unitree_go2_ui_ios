@@ -10,6 +10,7 @@ import { ServicesPage, type ServiceEntry } from './components/services-page';
 import { AudioPage } from './components/audio-page';
 import { FloatingPlayer } from './components/floating-player';
 import { SettingsPanel } from './components/settings-panel';
+import { ExternalCamera, EXTCAM_URL_KEY, EXTCAM_DEFAULT_URL } from './components/external-camera';
 import { connectLocal } from '../connection/local-connector';
 import { connectRemote, loginWithEmail } from '../connection/remote-connector';
 import { DataChannelHandler } from '../protocol/data-channel';
@@ -38,6 +39,7 @@ export class App {
   private scene3d: Scene3D | null = null;
   private settingBar: SettingBar | null = null;
   private settingsPanel: SettingsPanel | null = null;
+  private externalCamera: ExternalCamera | null = null;
 
   // Status page
   private statusPage: StatusPage | null = null;
@@ -246,6 +248,10 @@ export class App {
         }
       },
       onSettingsOpen: () => this.settingsPanel?.toggle(),
+      onExtCamToggle: (visible) => {
+        if (visible) this.externalCamera?.show();
+        else this.externalCamera?.hide();
+      },
     });
 
     // Create settings panel (needs controlUi as parent for overlay)
@@ -268,10 +274,19 @@ export class App {
         if (!enabled) this.joystickState = { lx: 0, ly: 0, rx: 0, ry: 0 };
       },
       onResetLayout: () => {
-        // Destroy and recreate the control screen so positions reset
         setTimeout(() => location.reload(), 300);
       },
+      onExtCamUrlChange: (url) => {
+        this.externalCamera?.setUrl(url);
+      },
     });
+
+    // External camera (ESP32 WebSocket stream)
+    const extCamUrl = localStorage.getItem(EXTCAM_URL_KEY) ?? EXTCAM_DEFAULT_URL;
+    this.externalCamera = new ExternalCamera(this.controlUi, extCamUrl);
+    // Sync toggle button state with saved visibility
+    const extCamVisible = localStorage.getItem('go2_extcam_visible') !== 'false';
+    this.settingBar?.setExtCamState(extCamVisible);
 
     // Apply saved settings immediately (before user interacts)
     const initSettings = this.settingBar.getInitialSettings();
@@ -406,6 +421,8 @@ export class App {
     this.settingBar = null;
     this.settingsPanel?.close();
     this.settingsPanel = null;
+    this.externalCamera?.destroy();
+    this.externalCamera = null;
     this.joystick1 = null;
     this.joystick2 = null;
     this.joysticksEnabled = true;

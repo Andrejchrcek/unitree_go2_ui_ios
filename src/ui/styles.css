@@ -2512,3 +2512,83 @@ body {
   margin-right: 6px;
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ── External Camera (ESP32 WebSocket stream) ────────────────────────────────
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ext-camera {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 280px;
+  background: #0d0f18;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 30;
+  touch-action: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.ext-camera-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  background: rgba(17, 17, 39, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  height: 32px;
+}
+
+.ext-camera-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 100%;
+  cursor: grab;
+  flex-shrink: 0;
+  touch-action: none;
+}
+.ext-camera-grip:active { cursor: grabbing; }
+
+.ext-camera-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #aaa;
+  flex: 1;
+  white-space: nowrap;
+}
+
+.ext-camera-status {
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-connecting { color: #888; }
+.status-live       { color: #4aef7a; }
+.status-offline    { color: #ef4a4a; }
+
+.ext-camera-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.ext-camera-close:active { opacity: 1; background: rgba(255,255,255,0.1); }
+
+.ext-camera-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: #000;
+}

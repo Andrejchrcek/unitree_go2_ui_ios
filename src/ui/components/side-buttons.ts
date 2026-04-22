@@ -58,6 +58,8 @@ export interface SettingCallbacks {
   onJoystickToggle: (enabled: boolean) => void;
   /** Open full settings panel. */
   onSettingsOpen: () => void;
+  /** Toggle external ESP32 camera. */
+  onExtCamToggle: (visible: boolean) => void;
 }
 
 const SETTINGS_KEY = 'go2_ui_settings';
@@ -91,6 +93,8 @@ export class SettingBar {
   private lampBtn!: HTMLButtonElement;
   private pipBtn!: HTMLButtonElement;
   private joystickBtn!: HTMLButtonElement;
+  private extCamBtn!: HTMLButtonElement;
+  private extCamOn = false;
   private volumeLevel = 0;
   private lampLevel = 0;
   private callbacks: SettingCallbacks;
@@ -191,9 +195,19 @@ export class SettingBar {
     settingsBtn.title = 'Open settings';
     settingsBtn.addEventListener('click', () => callbacks.onSettingsOpen());
 
+    // External camera toggle
+    this.extCamBtn = this.createSvgBtn(this.extCamOffSvg(), 'Ext Cam');
+    this.extCamBtn.title = 'Toggle external camera (ESP32)';
+    this.extCamBtn.addEventListener('click', () => {
+      this.extCamOn = !this.extCamOn;
+      this.extCamBtn.innerHTML = this.extCamOn ? this.extCamOnSvg() : this.extCamOffSvg();
+      callbacks.onExtCamToggle(this.extCamOn);
+    });
+
     this.container.appendChild(grip);
 
     this.container.appendChild(settingsBtn);
+    this.container.appendChild(this.extCamBtn);
     this.container.appendChild(this.radarBtn);
     this.container.appendChild(lidarBtn);
     this.container.appendChild(this.pipBtn);
@@ -266,6 +280,29 @@ export class SettingBar {
     this.lampLevel = level;
     const img = this.lampBtn.querySelector('img')!;
     img.src = level > 0 ? '/sprites/icon_lamp_on.png' : '/sprites/icon_lamp.png';
+  }
+
+  /** Sync ext cam button state from outside (e.g. after restore) */
+  setExtCamState(on: boolean): void {
+    this.extCamOn = on;
+    this.extCamBtn.innerHTML = on ? this.extCamOnSvg() : this.extCamOffSvg();
+  }
+
+  private extCamOnSvg(): string {
+    return `<svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#6879e4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="6" width="20" height="14" rx="2"/>
+      <circle cx="12" cy="13" r="3" fill="rgba(104,121,228,0.3)"/>
+      <path d="M8 6V4h8v2"/>
+    </svg>`;
+  }
+
+  private extCamOffSvg(): string {
+    return `<svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="6" width="20" height="14" rx="2"/>
+      <circle cx="12" cy="13" r="3"/>
+      <path d="M8 6V4h8v2"/>
+      <line x1="3" y1="3" x2="21" y2="21" stroke="#ef4a4a" stroke-width="1.8"/>
+    </svg>`;
   }
 
   private createBtn(iconSrc: string, alt: string): HTMLButtonElement {

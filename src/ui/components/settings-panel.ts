@@ -43,6 +43,7 @@ export interface SettingsPanelCallbacks {
   onJoysticksChange?:  (enabled: boolean) => void;
   onResetLayout?:      () => void;
   onShortcutsChange?:  () => void;
+  onExtCamUrlChange?:  (url: string) => void;
 }
 
 // ── Panel ────────────────────────────────────────────────────────────────────
@@ -94,6 +95,7 @@ export class SettingsPanel {
     body.appendChild(this.buildLayoutSection());
     body.appendChild(this.buildShortcutsSection());
     body.appendChild(this.buildDisplaySection());
+    body.appendChild(this.buildExtCamSection());
     body.appendChild(this.buildConnectionSection());
 
     panel.appendChild(body);
@@ -214,6 +216,40 @@ export class SettingsPanel {
       this.callbacks.onJoysticksChange?.(v);
     }));
     sec.appendChild(joyRow);
+
+    return sec;
+  }
+
+  // ── SECTION: External Camera ────────────────────────────────────────────────
+  private buildExtCamSection(): HTMLElement {
+    const EXTCAM_URL_KEY     = 'go2_extcam_url';
+    const EXTCAM_DEFAULT_URL = 'ws://go2cam.local:81';
+
+    const sec = this.makeSection('External Camera (ESP32)');
+
+    const urlRow = this.makeRow('WebSocket URL');
+    const urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.className = 'settings-input';
+    urlInput.style.width = '170px';
+    urlInput.value = localStorage.getItem(EXTCAM_URL_KEY) ?? EXTCAM_DEFAULT_URL;
+    urlInput.placeholder = 'ws://go2cam.local:81';
+
+    const applyBtn = this.makeActionBtn('Apply', '', () => {
+      const url = urlInput.value.trim() || EXTCAM_DEFAULT_URL;
+      try { localStorage.setItem(EXTCAM_URL_KEY, url); } catch { /* ignore */ }
+      this.callbacks.onExtCamUrlChange?.(url);
+      applyBtn.textContent = '✓';
+      setTimeout(() => { applyBtn.textContent = 'Apply'; }, 1500);
+    });
+    urlRow.appendChild(urlInput);
+    urlRow.appendChild(applyBtn);
+    sec.appendChild(urlRow);
+
+    const hint = document.createElement('div');
+    hint.style.cssText = 'padding: 4px 18px 10px; font-size: 11px; color: #555; line-height: 1.5;';
+    hint.textContent = 'Default: ws://go2cam.local:81 — toggle camera via 📷 in the side bar';
+    sec.appendChild(hint);
 
     return sec;
   }
