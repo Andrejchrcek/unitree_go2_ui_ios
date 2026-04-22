@@ -39,7 +39,7 @@
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
 #define DEFAULT_HOSTNAME  "go2cam"
-#define AP_PASS           "go2cam123"
+#define AP_PASS           "12345678"
 #define WIFI_TIMEOUT_MS   30000   // 30 s before AP fallback
 #define WS_PORT           81
 #define HTTP_PORT         80
